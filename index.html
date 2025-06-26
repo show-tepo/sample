@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>LINE Login + Firebase Test</title>
-  <!-- LIFF SDK -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <!-- Firebase SDK（互換モード） -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 </head>
@@ -16,19 +14,28 @@
   <button id="use-credit-btn">クレジットを1消費する</button>
 
   <script>
-    // Firebase設定
     const firebaseConfig = {
       apiKey: "AIzaSyDQRr7JwPmIJeVqmzAII06_08Q_pb4Aj2M",
       authDomain: "liff-credit-app.firebaseapp.com",
       projectId: "liff-credit-app"
     };
 
-    // 初期化
     const app = firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // userIdをグローバルに保持
     let userId = "";
+
+    async function loadCreditsAndDisplay(userId) {
+      const docRef = db.collection("users").doc(userId);
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
+        const data = docSnap.data();
+        document.getElementById("output").innerText =
+          `ようこそ ${data.displayName} さん！\nuserId: ${userId}\n現在のクレジット：${data.credits} クレジット`;
+      } else {
+        document.getElementById("output").innerText += "\nFirestoreにデータがありません。";
+      }
+    }
 
     async function main() {
       try {
@@ -42,40 +49,31 @@
         const profile = await liff.getProfile();
         userId = profile.userId;
         const displayName = profile.displayName;
-
-        document.getElementById("output").innerText =
-          `ようこそ ${displayName} さん！\nuserId: ${userId}`;
-
         const userRef = db.collection("users").doc(userId);
 
-        // Firestoreに保存（初回のみ上書きせずマージ）
-        await userRef.set({
-          userId: userId,
-          displayName: displayName,
-          credits: 10,
-          createdAt: new Date().toISOString()
-        }, { merge: true });
-
-        // Firestoreからクレジットを読み込み
+        // Firestoreに初回保存（存在しないときだけ）
         const docSnap = await userRef.get();
-        if (docSnap.exists) {
-          const userData = docSnap.data();
-          const credits = userData.credits;
-          document.getElementById("output").innerText += `\n現在のクレジット：${credits} クレジット`;
-        } else {
-          document.getElementById("output").innerText += `\nFirestoreにデータがありません。`;
+        if (!docSnap.exists) {
+          await userRef.set({
+            userId: userId,
+            displayName: displayName,
+            credits: 10,
+            createdAt: new Date().toISOString()
+          });
         }
 
+        // 表示更新
+        await loadCreditsAndDisplay(userId);
+
       } catch (e) {
-        console.error("エラー発生:", e);
-        document.getElementById("output").innerText =
-          "エラーが発生しました: " + e.message;
+        console.error("エラー:", e);
+        document.getElementById("output").innerText = "エラー: " + e.message;
       }
     }
 
     main();
 
-    // クレジット消費ボタンの処理
+    // クレジット消費
     document.getElementById("use-credit-btn").addEventListener("click", async () => {
       try {
         const docRef = db.collection("users").doc(userId);
@@ -88,13 +86,14 @@
             });
             document.getElementById("status").innerText =
               `クレジットを1消費しました。残り：${currentCredits - 1}`;
+            await loadCreditsAndDisplay(userId); // 👈 UI更新ここで再実行！
           } else {
             document.getElementById("status").innerText = "クレジットが足りません。";
           }
         }
       } catch (e) {
-        console.error("クレジット消費中にエラー:", e);
-        document.getElementById("status").innerText = "クレジット消費に失敗しました。";
+        console.error("消費エラー:", e);
+        document.getElementById("status").innerText = "消費エラー: " + e.message;
       }
     });
   </script>
