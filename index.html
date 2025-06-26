@@ -15,6 +15,12 @@
   <div id="status"></div>
   <button id="use-credit-btn">クレジットを1消費する</button>
 
+  <hr />
+  <h3>クレジット追加コード入力</h3>
+  <input type="text" id="credit-code-input" placeholder="コードを入力" />
+  <button id="redeem-credit-btn">コードでクレジットを追加</button>
+  <div id="redeem-status"></div>
+
   <script>
     // Firebase設定
     const firebaseConfig = {
@@ -101,7 +107,7 @@
 
             document.getElementById("status").innerText =
               `クレジットを1消費しました。残り：${currentCredits - 1}`;
-            await loadCreditsAndDisplay(userId); // UI更新
+            await loadCreditsAndDisplay(userId);
 
           } else {
             document.getElementById("status").innerText = "クレジットが足りません。";
@@ -110,6 +116,71 @@
       } catch (e) {
         console.error("消費エラー:", e);
         document.getElementById("status").innerText = "消費エラー: " + e.message;
+      }
+    });
+
+    // 🔑 コード入力でチャージ
+    document.getElementById("redeem-credit-btn").addEventListener("click", async () => {
+      const code = document.getElementById("credit-code-input").value.trim();
+
+      if (!code) {
+        document.getElementById("redeem-status").innerText = "コードを入力してください。";
+        return;
+      }
+
+      try {
+        const codeRef = db.collection("codes").doc(code);
+        const codeSnap = await codeRef.get();
+
+        if (!codeSnap.exists) {
+          document.getElementById("redeem-status").innerText = "無効なコードです。";
+          return;
+        }
+
+        const codeData = codeSnap.data();
+
+        if (codeData.used) {
+          document.getElementById("redeem-status").innerText = "このコードはすでに使用されています。";
+          return;
+        }
+
+        const amount = codeData.amount || 0;
+        const userRef = db.collection("users").doc(userId);
+        const userSnap = await userRef.get();
+
+        if (!userSnap.exists) {
+          document.getElementById("redeem-status").innerText = "ユーザー情報が存在しません。";
+          return;
+        }
+
+        const currentCredits = userSnap.data().credits;
+        await userRef.update({
+          credits: currentCredits + amount
+        });
+
+        // 🔥 ログ保存
+        await db.collection("logs").add({
+          userId: userId,
+          type: "recharge",
+          code: code,
+          amount: amount,
+          timestamp: new Date().toISOString()
+        });
+
+        // 🔒 コード無効化
+        await codeRef.update({
+          used: true,
+          usedBy: userId,
+          usedAt: new Date().toISOString()
+        });
+
+        document.getElementById("redeem-status").innerText =
+          `クレジットを${amount}追加しました！`;
+        await loadCreditsAndDisplay(userId);
+
+      } catch (e) {
+        console.error("チャージエラー:", e);
+        document.getElementById("redeem-status").innerText = "エラーが発生しました。";
       }
     });
   </script>
