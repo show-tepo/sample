@@ -24,35 +24,39 @@
     // Firebase初期化
     const app = firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
-
     async function main() {
-      // 🔧 あなたの LIFF ID をここに書いてね
-      await liff.init({ liffId: "2007642509-5QrBXx83" });
-
-      if (!liff.isLoggedIn()) {
-        liff.login();
-        return;
+      try {
+        await liff.init({ liffId: "2007642509-5QrBXx83" });
+    
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+    
+        const profile = await liff.getProfile();
+        const userId = profile.userId;
+        const displayName = profile.displayName;
+    
+        document.getElementById("output").innerText =
+          `ようこそ ${displayName} さん！\nuserId: ${userId}`;
+    
+        const userRef = db.collection("users").doc(userId);
+        await userRef.set({
+          userId: userId,
+          displayName: displayName,
+          credits: 10,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+    
+      } catch (e) {
+        console.error("エラー発生:", e);
+        document.getElementById("output").innerText =
+          "エラーが発生しました: " + e.message;
       }
-
-      const profile = await liff.getProfile();
-      const userId = profile.userId;
-      const displayName = profile.displayName;
-
-      // 表示確認
-      document.getElementById("output").innerText =
-        `ようこそ ${displayName} さん！\nuserId: ${userId}`;
-
-      // Firestoreに保存
-      const userRef = db.collection("users").doc(userId);
-      await userRef.set({
-        userId: userId,
-        displayName: displayName,
-        credits: 10,
-        createdAt: new Date().toISOString()
-      }, { merge: true }); // ← 上書きじゃなく追記・更新
     }
-
+    
     main();
+
   </script>
 </body>
 </html>
