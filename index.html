@@ -41,6 +41,17 @@
     
         document.getElementById("output").innerText =
           `ようこそ ${displayName} さん！\nuserId: ${userId}`;
+
+        // 👇 Firestoreからクレジットを取得して表示
+        const docSnap = await db.collection("users").doc(userId).get();
+        
+        if (docSnap.exists) {
+          const userData = docSnap.data();
+          const credits = userData.credits;
+          document.getElementById("output").innerText += `\n現在のクレジット：${credits} クレジット`;
+        } else {
+          document.getElementById("output").innerText += `\nFirestoreにデータがありません。`;
+        }
     
         const userRef = db.collection("users").doc(userId);
         await userRef.set({
