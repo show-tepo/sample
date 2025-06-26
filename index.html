@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>LINE Login + Firebase Test</title>
+  <!-- LIFF SDK -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <!-- Firebase SDK（互換モード） -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 </head>
@@ -14,17 +16,20 @@
   <button id="use-credit-btn">クレジットを1消費する</button>
 
   <script>
+    // Firebase設定
     const firebaseConfig = {
       apiKey: "AIzaSyDQRr7JwPmIJeVqmzAII06_08Q_pb4Aj2M",
       authDomain: "liff-credit-app.firebaseapp.com",
       projectId: "liff-credit-app"
     };
 
+    // 初期化
     const app = firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
     let userId = "";
 
+    // クレジット読み込み＋表示関数
     async function loadCreditsAndDisplay(userId) {
       const docRef = db.collection("users").doc(userId);
       const docSnap = await docRef.get();
@@ -37,6 +42,7 @@
       }
     }
 
+    // メイン処理（LINEログイン＆初回保存）
     async function main() {
       try {
         await liff.init({ liffId: "2007642509-5QrBXx83" });
@@ -51,7 +57,7 @@
         const displayName = profile.displayName;
         const userRef = db.collection("users").doc(userId);
 
-        // Firestoreに初回保存（存在しないときだけ）
+        // 初回保存（ドキュメントがなければ作成）
         const docSnap = await userRef.get();
         if (!docSnap.exists) {
           await userRef.set({
@@ -62,7 +68,7 @@
           });
         }
 
-        // 表示更新
+        // クレジット表示
         await loadCreditsAndDisplay(userId);
 
       } catch (e) {
@@ -73,7 +79,7 @@
 
     main();
 
-    // クレジット消費
+    // クレジット消費処理＋ログ保存
     document.getElementById("use-credit-btn").addEventListener("click", async () => {
       try {
         const docRef = db.collection("users").doc(userId);
@@ -84,9 +90,19 @@
             await docRef.update({
               credits: currentCredits - 1
             });
+
+            // 🔥 消費ログ追加
+            await db.collection("logs").add({
+              userId: userId,
+              type: "consume",
+              amount: 1,
+              timestamp: new Date().toISOString()
+            });
+
             document.getElementById("status").innerText =
               `クレジットを1消費しました。残り：${currentCredits - 1}`;
-            await loadCreditsAndDisplay(userId); // 👈 UI更新ここで再実行！
+            await loadCreditsAndDisplay(userId); // UI更新
+
           } else {
             document.getElementById("status").innerText = "クレジットが足りません。";
           }
